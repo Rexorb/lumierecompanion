@@ -1,2 +1,2 @@
-# lumiere
+# Lumiere - Companion
 Projeto Lumiere
