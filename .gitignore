@@ -1,0 +1,52 @@
+node_modules/
+.expo/
+dist/
+web-build/
+.env
+.env.local
+*.log
+*.tsbuildinfo
+expo-env.d.ts
+
+# Snapshot de distribuição do backend (fontes e migrations são versionáveis).
+/backend/node_modules/
+/backend/dist/
+/backend/build/
+/backend/coverage/
+/backend/.temp/
+/backend/.tmp/
+/backend/.env*
+/backend/**/.env*
+/backend/**/secrets/
+/backend/**/*.pem
+/backend/**/*.key
+/backend/**/*.p12
+/backend/**/*.dump
+/backend/**/*.sqlite*
+/backend/*.log
+/backend/logs/
+/backend/*.tsbuildinfo
+
+# Configuração local futura da demo; exemplos públicos continuam versionáveis.
+/.env.demo
+/.env.demo.*
+!/.env.demo.example
+/secrets/
+
+# Backups, artefatos temporários e configurações locais de IDE/agentes.
+/backups/
+/.temp/
+/.tmp/
+/.vscode/
+/.idea/
+.DS_Store
+*.swp
+
+# Relatórios internos de planejamento/auditoria: preservados localmente,
+# não fazem parte da distribuição pública.
+/docs/00_AUDITORIA_BACKEND_E_UI.md
+/docs/DELEGACAO_PUBLICACAO_DOCKER_LUMIERE_COMPANION.md
+/docs/ENTREGA_GITHUB_DOCKER_AUDITORIA.md
+/docs/ENTREGA_GITHUB_DOCKER_P05_REVISAO.md
+/docs/ENTREGA_GITHUB_DOCKER_P2.md
+/docs/ESTADO_ATUAL_E_PROXIMOS_PASSOS.md

@@ -1,0 +1,27 @@
+# Contexto de build da imagem Docker do backend distribuível.
+# Segredos, dependências instaladas, artefatos e material de desenvolvimento
+# não entram na imagem.
+
+.git
+.gitignore
+.dockerignore
+Dockerfile
+node_modules
+dist
+build
+coverage
+.temp
+.tmp
+.env*
+**/.env*
+**/secrets
+**/*.pem
+**/*.key
+**/*.p12
+**/*.dump
+**/*.sqlite*
+*.log
+logs
+*.tsbuildinfo
+**/*.spec.ts
+SNAPSHOT_MANIFEST.sha256

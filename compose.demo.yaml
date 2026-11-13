@@ -1,0 +1,130 @@
+# Demonstração isolada do backend do Lumière Companion.
+#
+# Uso previsto (P3, após autorização):
+#   ./scripts/setup-demo.sh
+#   docker compose --env-file .env.demo -f compose.demo.yaml config
+#   docker compose --env-file .env.demo -f compose.demo.yaml up -d db
+#   docker compose --env-file .env.demo -f compose.demo.yaml run --rm migrate
+#   docker compose --env-file .env.demo -f compose.demo.yaml run --rm seed
+#   docker compose --env-file .env.demo -f compose.demo.yaml up -d api
+#
+# O projeto, a rede e o volume recebem o prefixo "lumiere-companion-demo",
+# evitando colisão com a instalação original do Lumière.
+# Nenhuma migration/seed é executada automaticamente.
+
+name: lumiere-companion-demo
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lumiere_demo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env.demo}
+      POSTGRES_DB: ${POSTGRES_DB:-lumiere_demo}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    networks:
+      - demo
+    # Porta 5432 deliberadamente não publicada no host.
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: runtime
+    image: lumiere-companion-demo-api:local
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      # Senha deve ser URL-safe (ex.: openssl rand -hex 24) para não quebrar a URL.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-lumiere_demo}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-lumiere_demo}?schema=public
+      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET (>=32 bytes) no .env.demo}
+      # JWT_EXPIRES_IN é omitido de propósito: o backend atual usa parseInt(),
+      # então "1d" viraria 1 segundo. Sem a variável, vale o default interno "7d".
+      # Opcional (somente segundos): JWT_EXPIRES_IN=604800
+      # Opcional: sem chave, a recuperação de senha permanece neutra e o boot funciona.
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      MAIL_FROM: ${MAIL_FROM:-noreply@lumiere.local}
+      APP_URL: ${APP_URL:-http://localhost:8083}
+    ports:
+      # Exposto apenas no loopback até a validação da P3.
+      - "127.0.0.1:${DEMO_API_PORT:-3101}:3001"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3001/health').then((r) => { if (!r.ok) process.exit(1); }).catch(() => process.exit(1));",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - demo
+
+  # Ferramenta de migrations: acionada explicitamente, nunca no startup.
+  migrate:
+    profiles: ["tools"]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: migrate
+    image: lumiere-companion-demo-migrate:local
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-lumiere_demo}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-lumiere_demo}?schema=public
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - demo
+    restart: "no"
+
+  # Seed fictício e idempotente. Usa o mesmo alvo de ferramenta da migration.
+  seed:
+    profiles: ["tools"]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: migrate
+    image: lumiere-companion-demo-migrate:local
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-lumiere_demo}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-lumiere_demo}?schema=public
+      DEMO_USER_A_NAME: ${DEMO_USER_A_NAME:?defina DEMO_USER_A_NAME no .env.demo}
+      DEMO_USER_A_EMAIL: ${DEMO_USER_A_EMAIL:?defina DEMO_USER_A_EMAIL no .env.demo}
+      DEMO_PASSWORD_A: ${DEMO_PASSWORD_A:?defina DEMO_PASSWORD_A no .env.demo}
+      DEMO_USER_B_NAME: ${DEMO_USER_B_NAME:?defina DEMO_USER_B_NAME no .env.demo}
+      DEMO_USER_B_EMAIL: ${DEMO_USER_B_EMAIL:?defina DEMO_USER_B_EMAIL no .env.demo}
+      DEMO_PASSWORD_B: ${DEMO_PASSWORD_B:?defina DEMO_PASSWORD_B no .env.demo}
+    volumes:
+      - ./scripts/seed-demo.js:/app/seed-demo.js:ro
+    entrypoint: ["node", "/app/seed-demo.js"]
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - demo
+    restart: "no"
+
+volumes:
+  pgdata:
+    # Sem "name" fixo: o Compose usa lumiere-companion-demo_pgdata.
+    driver: local
+
+networks:
+  demo:
+    driver: bridge

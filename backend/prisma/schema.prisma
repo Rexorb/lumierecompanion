@@ -1,0 +1,446 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================
+//  ENUMS
+// ============================================================
+
+enum TipoUsuario {
+  DONO_SALAO
+  SUPER_ADMIN
+  GERENTE
+  RECEPCIONISTA
+}
+
+enum StatusAgendamento {
+  PENDENTE
+  CONFIRMADO
+  CANCELADO
+  CONCLUIDO
+  FALTOU
+}
+
+enum DiaSemana {
+  SEGUNDA
+  TERCA
+  QUARTA
+  QUINTA
+  SEXTA
+  SABADO
+  DOMINGO
+}
+
+enum TipoExcecaoAgenda {
+  FECHADO
+  HORARIO_ESPECIAL
+  LIBERACAO
+  BLOQUEIO
+}
+
+enum StatusInstanciaWhatsApp {
+  DESCONECTADO
+  CONECTADO
+  QR_CODE_EXPIRADO
+  ERROR
+}
+
+enum NivelLog {
+  DEBUG
+  INFO
+  WARNING
+  ERROR
+  CRITICAL
+}
+
+enum CategoriaServico {
+  CABELO
+  UNHA
+  ESTETICA
+  MAQUIAGEM
+  MASSAGEM
+  BARBEARIA
+  OUTRO
+}
+
+// ============================================================
+//  MODEL: USUARIO
+// ============================================================
+
+model Usuario {
+  id          String         @id @default(cuid())
+  nome        String
+  email       String         @unique
+  senha       String
+  tipo        TipoUsuario    @default(DONO_SALAO)
+  verificado  Boolean        @default(false)
+  ultimoLogin DateTime?
+  tokenReset  String?
+  tokenResetExpira DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  saloes      UsuarioSalao[]
+  logs        Log[]
+
+  @@index([email])
+  @@map("usuarios")
+}
+
+// ============================================================
+//  MODEL: SALAO
+// ============================================================
+
+model Salao {
+  id          String         @id @default(cuid())
+  nome        String
+  cnpj        String?        @unique
+  telefone    String?
+  email       String?
+  cep         String?
+  endereco    String?
+  numero      String?
+  complemento String?
+  cidade      String?
+  estado      String?
+  ativo       Boolean        @default(true)
+  deletedAt   DateTime?
+  tempoTimeout Int           @default(300)
+  lembreteAntecedencia Int   @default(24)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  usuarios    UsuarioSalao[]
+  servicos    Servico[]
+  clientes    Cliente[]
+  agendamentos Agendamento[]
+  horarios    HorarioFuncionamento[]
+  instanciaWhatsApp InstanciaWhatsApp?
+  configuracaoChatbot ConfiguracaoChatbot?
+  configuracaoAgenda ConfiguracaoAgenda?
+  disponibilidadesSemanais DisponibilidadeSemanal[]
+  excecoesAgenda ExcecaoAgenda[]
+  conversas   ConversaChatbot[]
+  mensagensProcessadas MensagemProcessada[]
+
+  @@index([cnpj])
+  @@index([deletedAt])
+  @@map("saloes")
+}
+
+// ============================================================
+//  MODEL: USUARIO_SALAO (N:N)
+// ============================================================
+
+model UsuarioSalao {
+  id          String         @id @default(cuid())
+  usuarioId   String
+  salaoId     String
+  papel       TipoUsuario    @default(DONO_SALAO)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  usuario     Usuario        @relation(fields: [usuarioId], references: [id])
+  salao       Salao          @relation(fields: [salaoId], references: [id])
+
+  @@unique([usuarioId, salaoId])
+  @@index([salaoId])
+  @@index([usuarioId])
+  @@map("usuarios_saloes")
+}
+
+// ============================================================
+//  MODEL: SERVICO
+// ============================================================
+
+model Servico {
+  id          String           @id @default(cuid())
+  nome        String
+  descricao   String?
+  duracao     Int
+  preco       Decimal          @db.Decimal(10,2)
+  categoria   CategoriaServico @default(OUTRO)
+  ativo       Boolean          @default(true)
+  disponivel  Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  salaoId     String
+  salao       Salao            @relation(fields: [salaoId], references: [id])
+  agendamentos Agendamento[]
+
+  @@index([salaoId])
+  @@index([categoria])
+  @@index([ativo])
+  @@map("servicos")
+}
+
+// ============================================================
+//  MODEL: CLIENTE
+// ============================================================
+
+model Cliente {
+  id          String         @id @default(cuid())
+  nome        String
+  telefone    String
+  email       String?
+  dataNascimento DateTime?
+  observacoes String?
+  totalVisitas Int           @default(0)
+  ultimaVisita DateTime?
+  deletedAt   DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  salaoId     String
+  salao       Salao          @relation(fields: [salaoId], references: [id])
+  agendamentos Agendamento[]
+  conversas   ConversaChatbot[]
+
+  @@unique([salaoId, telefone])
+  @@index([salaoId])
+  @@index([telefone])
+  @@index([deletedAt])
+  @@map("clientes")
+}
+
+// ============================================================
+//  MODEL: AGENDAMENTO
+// ============================================================
+
+model Agendamento {
+  id          String             @id @default(cuid())
+  dataHora    DateTime           @db.Timestamptz(3)
+  duracao     Int
+  status      StatusAgendamento  @default(PENDENTE)
+  observacoes String?
+  confirmadoEm DateTime?
+  canceladoEm DateTime?
+  motivoCancelamento String?
+  eventoId    String?
+  conversaId  String?
+  estadoChatbot String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  salaoId     String
+  salao       Salao              @relation(fields: [salaoId], references: [id])
+  clienteId   String
+  cliente     Cliente            @relation(fields: [clienteId], references: [id])
+  servicoId   String
+  servico     Servico            @relation(fields: [servicoId], references: [id])
+
+  // 👇 ADICIONADO: Relação inversa com ConversaChatbot
+  conversa    ConversaChatbot?
+
+  @@index([salaoId, dataHora])
+  @@index([clienteId])
+  @@index([status])
+  @@index([dataHora])
+  @@map("agendamentos")
+}
+
+// ============================================================
+//  MODEL: HORARIO_FUNCIONAMENTO
+// ============================================================
+
+model HorarioFuncionamento {
+  id          String         @id @default(cuid())
+  diaSemana   DiaSemana
+  horarioAbertura String
+  horarioFechamento String
+  intervalo   Int?
+  ativo       Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  salaoId     String
+  salao       Salao          @relation(fields: [salaoId], references: [id])
+
+  @@unique([salaoId, diaSemana])
+  @@index([salaoId])
+  @@map("horarios_funcionamento")
+}
+
+// Agenda é propriedade do salão; HorarioFuncionamento é apenas referência
+// opcional futura, sem dependência relacional ou fallback automático.
+model ConfiguracaoAgenda {
+  id                  String   @id @default(cuid())
+  salaoId             String   @unique
+  publicada           Boolean  @default(false)
+  timezone            String   @default("America/Sao_Paulo")
+  horizonteDias       Int      @default(60)
+  antecedenciaMinutos Int      @default(60)
+  passoMinutos        Int      @default(30)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  salao Salao @relation(fields: [salaoId], references: [id])
+
+  @@map("configuracoes_agenda")
+}
+
+model DisponibilidadeSemanal {
+  id           String    @id @default(cuid())
+  salaoId      String
+  diaSemana    DiaSemana
+  inicioMinuto Int
+  fimMinuto    Int
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  salao Salao @relation(fields: [salaoId], references: [id])
+
+  @@unique([salaoId, diaSemana, inicioMinuto, fimMinuto])
+  @@index([salaoId, diaSemana])
+  @@map("disponibilidades_semanais")
+}
+
+model ExcecaoAgenda {
+  id           String             @id @default(cuid())
+  salaoId      String
+  data         DateTime           @db.Date
+  tipo         TipoExcecaoAgenda
+  inicioMinuto Int?
+  fimMinuto    Int?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  salao Salao @relation(fields: [salaoId], references: [id])
+
+  @@unique([salaoId, data, tipo, inicioMinuto, fimMinuto])
+  @@index([salaoId, data])
+  @@map("excecoes_agenda")
+}
+
+// ============================================================
+//  MODEL: INSTANCIA_WHATSAPP
+// ============================================================
+
+model InstanciaWhatsApp {
+  id          String                   @id @default(cuid())
+  nome        String
+  numero      String?
+  status      StatusInstanciaWhatsApp  @default(DESCONECTADO)
+  qrCode      String?
+  qrCodeExpira DateTime?
+  webhookUrl  String?
+  webhookEvents String[]
+  instanceId  String?                 @unique
+  apiKey      String?
+  ultimaConexao DateTime?
+  totalMensagensRecebidas Int @default(0)
+  totalMensagensEnviadas Int @default(0)
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+
+  salaoId     String                   @unique
+  salao       Salao                    @relation(fields: [salaoId], references: [id])
+  mensagensProcessadas MensagemProcessada[]
+
+  @@index([status])
+  @@index([numero])
+  @@map("instancias_whatsapp")
+}
+
+// ============================================================
+//  MODEL: MENSAGEM_PROCESSADA (IDEMPOTÊNCIA)
+// ============================================================
+
+model MensagemProcessada {
+  id                    String   @id @default(cuid())
+  salaoId               String
+  instanciaWhatsAppId   String
+  externalMessageId     String
+  eventType             String
+  receivedAt            DateTime @default(now())
+
+  salao                 Salao                    @relation(fields: [salaoId], references: [id])
+  instanciaWhatsApp     InstanciaWhatsApp        @relation(fields: [instanciaWhatsAppId], references: [id])
+
+  @@unique([instanciaWhatsAppId, externalMessageId])
+  @@index([salaoId])
+  @@map("mensagens_processadas")
+}
+
+// ============================================================
+//  MODEL: CONFIGURACAO_CHATBOT (Fase 8.1)
+//  Configuração persistente 1:1 entre Salão e Chatbot.
+//  Salao 1 → 0..1 ConfiguracaoChatbot (salaoId UNIQUE).
+//  `ativo` é estado declarado no banco; não consulta Evolution
+//  nem estado operacional do canal para ser salvo.
+// ============================================================
+
+model ConfiguracaoChatbot {
+  id                  String   @id @default(cuid())
+  salaoId             String   @unique
+  ativo               Boolean  @default(false)
+  nomeAssistente      String   @default("Assistente")
+  mensagemBoasVindas  String?
+  mensagemFinalizacao String?
+  timeoutMinutos      Int      @default(15)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  salao Salao @relation(fields: [salaoId], references: [id])
+
+  @@map("configuracoes_chatbot")
+}
+
+// ============================================================
+//  MODEL: CONVERSA_CHATBOT
+// ============================================================
+
+model ConversaChatbot {
+  id            String   @id @default(cuid())
+  estadoAtual   String
+  dadosContexto Json
+  ultimoEvento  String?
+  ultimaMensagem DateTime
+  mensagens     Json?
+  timeoutExpira DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  clienteId     String
+  cliente       Cliente  @relation(fields: [clienteId], references: [id])
+  salaoId       String
+  salao         Salao    @relation(fields: [salaoId], references: [id])
+
+  // 👇 CORRIGIDO: Agora é uma relação 1:1 com Agendamento
+  // Usando o campo agendamentoId como chave estrangeira
+  agendamentoId String?  @unique
+  agendamento   Agendamento? @relation(fields: [agendamentoId], references: [id])
+
+  @@index([clienteId])
+  @@index([salaoId])
+  @@index([estadoAtual])
+  @@index([timeoutExpira])
+  @@unique([clienteId, salaoId])
+  @@map("conversas_chatbot")
+}
+
+// ============================================================
+//  MODEL: LOG
+// ============================================================
+
+model Log {
+  id          String     @id @default(cuid())
+  nivel       NivelLog   @default(INFO)
+  mensagem    String
+  contexto    Json?
+  ip          String?
+  userAgent   String?
+  createdAt   DateTime   @default(now())
+  usuarioId   String?
+  usuario     Usuario?   @relation(fields: [usuarioId], references: [id])
+
+  @@index([nivel])
+  @@index([createdAt])
+  @@index([usuarioId])
+  @@map("logs")
+}
