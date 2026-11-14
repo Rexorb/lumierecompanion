@@ -221,7 +221,7 @@ npm ci
 ### 8.2 Configurar a URL da API
 
 ```bash
-cp .env.example .env
+test -f .env || cp .env.example .env
 ```
 
 Edite `.env` conforme o ambiente:
@@ -230,7 +230,7 @@ Edite `.env` conforme o ambiente:
 |---|---|---|
 | Emulador Android padrão | `http://10.0.2.2:3101` | `10.0.2.2` é o host do computador visto pelo emulador |
 | Aparelho Android por USB | `http://127.0.0.1:3101` | Requer `adb reverse tcp:3101 tcp:3101` |
-| Celular na mesma Wi-Fi | não suportado pelo binding padrão | A API está em loopback; seria necessário publicar em `0.0.0.0` e revisar firewall, o que não foi feito |
+| Celular na mesma Wi-Fi (Expo Go por QR Code) | `http://IP_DO_PC:3101` | Opção explícita: configure `DEMO_API_HOST=IP_DO_PC` em `.env.demo`, recrie a API e use rede confiável; veja [`TUTORIAL.md`](TUTORIAL.md) |
 | Expo web | — | A prévia web não faz login, pois não há SecureStore no navegador |
 
 Depois de alterar `.env`, **reinicie o Metro**. A variável é pública no bundle: não coloque JWT, senha ou chave de API nela.
@@ -241,7 +241,7 @@ Depois de alterar `.env`, **reinicie o Metro**. A variável é pública no bundl
 npm start
 ```
 
-O Expo/Metro usa a porta **8083**. Abra o QR Code com o Expo Go ou use um emulador já iniciado. Para tentar abrir diretamente no Android:
+O Expo/Metro usa a porta **8083**. Para abrir pelo QR Code no celular usando a mesma Wi-Fi, siga o procedimento de rede e API em [`TUTORIAL.md`](TUTORIAL.md); `npm start` sozinho não torna a API acessível ao celular. Para tentar abrir diretamente no Android:
 
 ```bash
 npm run android
@@ -267,6 +267,10 @@ Configure `.env` com `EXPO_PUBLIC_API_URL=http://127.0.0.1:3101` e reinicie o Ex
 3. Execute `npm run android` ou `npm start` e abra o projeto no Expo Go.
 
 O acesso da API por `10.0.2.2` pressupõe que a API esteja publicada no loopback do host, que é o padrão do Compose.
+
+### 8.6 Expo Go por QR Code na mesma Wi-Fi
+
+Use `npx expo start --go --lan --port 8083` **após** configurar `.env` com o IP do computador e optar por publicar a API somente nesse IP por `DEMO_API_HOST` em `.env.demo`. O passo a passo completo, incluindo teste de `/health` no celular, firewall e retorno ao loopback, está em [`TUTORIAL.md`](TUTORIAL.md). Esse fluxo ainda não foi validado em aparelho.
 
 ## 9. Credenciais demonstrativas
 
@@ -325,7 +329,7 @@ Contratos detalhados: [`docs/04_CONTRATOS_CONSULTA.md`](docs/04_CONTRATOS_CONSUL
 
 - **Validação Android pendente:** não há emulador/aparelho disponível na P4; login, sessão, abas, Agenda, Clientes, logout, falhas de rede e tamanhos de tela **não foram testados no app**. Não considere o aplicativo aprovado para a demo sem essa execução.
 - **Sem APK/App Bundle:** o projeto executa via Expo Go/development build; não há build Android instalável.
-- **API em loopback:** por padrão, celular na mesma Wi-Fi não alcança `127.0.0.1:3101`; o fluxo previsto é emulador com `10.0.2.2` ou USB com `adb reverse`.
+- **API em loopback:** por padrão, celular na mesma Wi-Fi não alcança `127.0.0.1:3101`. Para usar Expo Go por QR Code, é necessário optar por publicar a API no IP da Wi-Fi (`DEMO_API_HOST`) e revisar o firewall; não use `0.0.0.0` nem redes públicas. Emulador (`10.0.2.2`) e USB (`adb reverse`) continuam sendo alternativas.
 - **Recuperação de senha:** sem `RESEND_API_KEY`, o boot funciona e o endpoint responde de forma neutra, mas não envia e-mail. A demo não depende de Resend.
 - **`JWT_EXPIRES_IN`:** o backend atual usa `parseInt`; por isso a demo **omite** essa variável e usa o default interno de 7 dias. Não use `"1d"`.
 - **Migrations:** dependem do alvo Docker `migrate`; não são automáticas.

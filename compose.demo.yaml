@@ -55,8 +55,8 @@ services:
       MAIL_FROM: ${MAIL_FROM:-noreply@lumiere.local}
       APP_URL: ${APP_URL:-http://localhost:8083}
     ports:
-      # Exposto apenas no loopback até a validação da P3.
-      - "127.0.0.1:${DEMO_API_PORT:-3101}:3001"
+      # Loopback por padrão; para Expo Go via Wi-Fi, opte explicitamente pelo IP LAN do host.
+      - "${DEMO_API_HOST:-127.0.0.1}:${DEMO_API_PORT:-3101}:3001"
     depends_on:
       db:
         condition: service_healthy
